@@ -108,6 +108,7 @@ EnumPropertyItem modifier_type_items[] = {
 	{eModifierType_Smoke, "SMOKE", ICON_MOD_SMOKE, "Smoke", ""},
 	{eModifierType_Softbody, "SOFT_BODY", ICON_MOD_SOFT, "Soft Body", ""},
 	{eModifierType_Surface, "SURFACE", ICON_MOD_PHYSICS, "Surface", ""},
+	{eModifierType_ShallowWater, "SHALLOW_WATER", ICON_MOD_OCEAN, "Shallow Water", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -244,6 +245,8 @@ static StructRNA *rna_Modifier_refine(struct PointerRNA *ptr)
 			return &RNA_LaplacianDeformModifier;
 		case eModifierType_Wireframe:
 			return &RNA_WireframeModifier;
+		case eModifierType_ShallowWater:
+			return &RNA_ShallowWaterModifier;
 		/* Default */
 		case eModifierType_None:
 		case eModifierType_ShapeKey:
@@ -570,6 +573,14 @@ static void rna_OceanModifier_sim_update(Main *bmain, Scene *scene, PointerRNA *
 	OceanModifierData *omd = (OceanModifierData *)ptr->data;
 	
 	omd->refresh |= MOD_OCEAN_REFRESH_SIM;
+	
+	rna_Modifier_update(bmain, scene, ptr);
+}
+
+static void rna_ShallowWater_sim_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{
+	//OceanModifierData *omd = (OceanModifierData *)ptr->data;	
+	//omd->refresh |= MOD_OCEAN_REFRESH_SIM;
 	
 	rna_Modifier_update(bmain, scene, ptr);
 }
@@ -3664,6 +3675,23 @@ static void rna_def_modifier_wireframe(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 }
 
+static void rna_def_modifier_shallowwater(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	srna = RNA_def_struct(brna, "ShallowWaterModifier", "Modifier");
+	RNA_def_struct_ui_text(srna, "ShallowWater Modifier", "Shallow Water Simulation");
+	RNA_def_struct_sdna(srna, "ShallowWaterModifierData");
+	RNA_def_struct_ui_icon(srna, ICON_MOD_OCEAN);
+
+	prop = RNA_def_property(srna, "time", PROP_FLOAT, PROP_UNSIGNED);
+	RNA_def_property_float_sdna(prop, NULL, "time");
+	RNA_def_property_ui_text(prop, "Time", "Current time of the simulation");
+	RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, -1);
+	RNA_def_property_update(prop, 0, "rna_ShallowWater_sim_update");
+}
+
 void RNA_def_modifier(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -3777,6 +3805,7 @@ void RNA_def_modifier(BlenderRNA *brna)
 	rna_def_modifier_meshcache(brna);
 	rna_def_modifier_laplaciandeform(brna);
 	rna_def_modifier_wireframe(brna);
+	rna_def_modifier_shallowwater(brna);
 }
 
 #endif

@@ -82,6 +82,7 @@ typedef enum ModifierType {
 	eModifierType_MeshCache         = 46,
 	eModifierType_LaplacianDeform   = 47,
 	eModifierType_Wireframe         = 48,
+	eModifierType_ShallowWater      = 49,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 
@@ -1366,6 +1367,12 @@ enum {
 	MOD_WIREFRAME_CREASE        = (1 << 5),
 };
 
+typedef struct ShallowWaterModifierData {
+	ModifierData modifier;
+	float *real, *imag;
+	float time;
+	char pad[4];
+} ShallowWaterModifierData;
 
 
 #endif  /* __DNA_MODIFIER_TYPES_H__ */
