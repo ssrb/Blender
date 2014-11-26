@@ -579,7 +579,7 @@ static void rna_OceanModifier_sim_update(Main *bmain, Scene *scene, PointerRNA *
 
 static void rna_ShallowWater_sim_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	//OceanModifierData *omd = (OceanModifierData *)ptr->data;	
+	ShallowWaterModifierData *omd = (ShallowWaterModifierData *)ptr->data;	
 	//omd->refresh |= MOD_OCEAN_REFRESH_SIM;
 	
 	rna_Modifier_update(bmain, scene, ptr);

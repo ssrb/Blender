@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <math.h>
+
 #ifdef _OPENMP
 #define OMP_MIN_RES 18
 #endif
@@ -174,6 +176,18 @@ static bool LoadWaveComplexAmplitude(ShallowWaterModifierData *swmd, int numVert
 	return true;
 }
 
+static void apply_amplitude(DerivedMesh *mesh, ShallowWaterModifierData *swmd)
+{
+	int vi;
+	double ct = cos(swmd->time), st = sin(swmd->time);
+	MVert *mverts = CDDM_get_verts(mesh);
+	for (vi = 0; vi <  mesh->getNumVerts(mesh); ++vi)
+	{
+		float *co = mverts[vi].co;
+		co[2] = 0.00005 * (swmd->real[vi] * ct - swmd->imag[vi] * st);
+	}
+}
+
 static DerivedMesh *do_shallow_water(ShallowWaterModifierData *swmd)
 {
 	
@@ -185,7 +199,16 @@ static DerivedMesh *do_shallow_water(ShallowWaterModifierData *swmd)
 		LoadWaveComplexAmplitude(swmd, numVerts);
 	}
 
+	apply_amplitude(mesh, swmd);
 	return mesh;
+}
+
+static void copyData(ModifierData *md, ModifierData *target)
+{
+	ShallowWaterModifierData *omd = (ShallowWaterModifierData *) md;
+	ShallowWaterModifierData *tomd = (ShallowWaterModifierData *) target;
+
+	tomd->time = omd->time;
 }
 
 static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
@@ -203,6 +226,12 @@ static void initData(ModifierData *md)
 	swmd->time = 1.0;
 }
 
+static bool dependsOnNormals(ModifierData *md)
+{
+	ShallowWaterModifierData *omd = (ShallowWaterModifierData *)md;
+	return true;
+}
+
 static void freeData(ModifierData *md)
 {
 	ShallowWaterModifierData *swmd = (ShallowWaterModifierData *)md;
@@ -218,7 +247,7 @@ ModifierTypeInfo modifierType_ShallowWater = {
 	/* flags */             eModifierTypeFlag_AcceptsMesh |
 	                        eModifierTypeFlag_SupportsEditmode |
 	                        eModifierTypeFlag_EnableInEditmode,
-	/* copyData */          NULL,
+	/* copyData */          copyData,
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
@@ -231,7 +260,7 @@ ModifierTypeInfo modifierType_ShallowWater = {
 	/* isDisabled */        NULL,
 	/* updateDepgraph */    NULL,
 	/* dependsOnTime */     NULL,
-	/* dependsOnNormals */  NULL,
+	/* dependsOnNormals */  dependsOnNormals,
 	/* foreachObjectLink */ NULL,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,

@@ -1225,6 +1225,11 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
         col.prop(md, "material_offset", text="Material Offset")
 
+    def SHALLOW_WATER(self, layout, ob, md):
+        split = layout.split()
+
+        col = split.column()
+        col.prop(md, "time")
 
 if __name__ == "__main__":  # only for live edit.
     bpy.utils.register_module(__name__)
