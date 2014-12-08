@@ -1369,8 +1369,10 @@ enum {
 
 typedef struct ShallowWaterModifierData {
 	ModifierData modifier;
-	float *real, *imag;
+	float *real;
+	float *imag;
 	float time;
+	char geometry[1024];
 	char pad[4];
 } ShallowWaterModifierData;
 

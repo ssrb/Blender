@@ -579,9 +579,7 @@ static void rna_OceanModifier_sim_update(Main *bmain, Scene *scene, PointerRNA *
 
 static void rna_ShallowWater_sim_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	ShallowWaterModifierData *omd = (ShallowWaterModifierData *)ptr->data;	
-	//omd->refresh |= MOD_OCEAN_REFRESH_SIM;
-	
+	ShallowWaterModifierData *omd = (ShallowWaterModifierData *)ptr->data;		
 	rna_Modifier_update(bmain, scene, ptr);
 }
 
@@ -3685,11 +3683,18 @@ static void rna_def_modifier_shallowwater(BlenderRNA *brna)
 	RNA_def_struct_sdna(srna, "ShallowWaterModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_OCEAN);
 
-	prop = RNA_def_property(srna, "time", PROP_FLOAT, PROP_UNSIGNED);
+	prop = RNA_def_property(srna, "time", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "time");
 	RNA_def_property_ui_text(prop, "Time", "Current time of the simulation");
 	RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, -1);
 	RNA_def_property_update(prop, 0, "rna_ShallowWater_sim_update");
+
+	prop = RNA_def_property(srna, "geometry", PROP_STRING, PROP_FILEPATH);
+	//RNA_def_property_string_funcs(prop, "rna_MultiresModifier_filepath_get", "rna_MultiresModifier_filepath_length",
+	//                              "rna_MultiresModifier_filepath_set");
+
+	RNA_def_property_ui_text(prop, "Geometry Path", "Path to harbor geometry");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 }
 
 void RNA_def_modifier(BlenderRNA *brna)

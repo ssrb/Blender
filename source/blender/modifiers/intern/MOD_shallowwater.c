@@ -64,7 +64,7 @@ static bool ReadTriangles(	FILE *meshStream,
 		mp->loopstart = ti * 3;
 		mp->totloop = 3;
 
-		//mp->flag |= ME_SMOOTH;
+		mp->flag |= ME_SMOOTH;
 
 		origindex[ti] = ORIGINDEX_NONE;	
 	}
@@ -184,7 +184,7 @@ static void apply_amplitude(DerivedMesh *mesh, ShallowWaterModifierData *swmd)
 	for (vi = 0; vi <  mesh->getNumVerts(mesh); ++vi)
 	{
 		float *co = mverts[vi].co;
-		co[2] = 0.00005 * (swmd->real[vi] * ct - swmd->imag[vi] * st);
+		co[2] = 0.00015 * (swmd->real[vi] * ct - swmd->imag[vi] * st);
 	}
 }
 

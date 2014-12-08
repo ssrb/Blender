@@ -1228,6 +1228,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
     def SHALLOW_WATER(self, layout, ob, md):
         split = layout.split()
 
+        col = split.column(align=True)
+        col.label(text="Geometry path:")
+        col.prop(md, "geometry", text="")
+
         col = split.column()
         col.prop(md, "time")
 
