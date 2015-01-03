@@ -1226,14 +1226,20 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(md, "material_offset", text="Material Offset")
 
     def SHALLOW_WATER(self, layout, ob, md):
-        split = layout.split()
 
-        col = split.column(align=True)
-        col.label(text="Geometry path:")
-        col.prop(md, "geometry", text="")
+        row = layout.row()
+        row.label(text="Geometry path:")
+        row.prop(md, "geometry", text="")
 
-        col = split.column()
-        col.prop(md, "time")
+        row = layout.row()
+        row.label(text="Solution path:")
+        row.prop(md, "solution", text="")
+
+        row = layout.row()
+        row.prop(md, "time")
+
+        row = layout.row()
+        row.prop(md, "amplitude_multiplier")
 
 if __name__ == "__main__":  # only for live edit.
     bpy.utils.register_module(__name__)

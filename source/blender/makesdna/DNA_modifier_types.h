@@ -1372,8 +1372,10 @@ typedef struct ShallowWaterModifierData {
 	float *real;
 	float *imag;
 	float time;
+	float amplitude_multiplier;
 	char geometry[1024];
-	char pad[4];
+	char solution[1024];
+	//char pad[4];
 } ShallowWaterModifierData;
 
 

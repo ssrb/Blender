@@ -577,12 +577,6 @@ static void rna_OceanModifier_sim_update(Main *bmain, Scene *scene, PointerRNA *
 	rna_Modifier_update(bmain, scene, ptr);
 }
 
-static void rna_ShallowWater_sim_update(Main *bmain, Scene *scene, PointerRNA *ptr)
-{
-	ShallowWaterModifierData *omd = (ShallowWaterModifierData *)ptr->data;		
-	rna_Modifier_update(bmain, scene, ptr);
-}
-
 static void rna_OceanModifier_topology_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	OceanModifierData *omd = (OceanModifierData *)ptr->data;
@@ -3687,13 +3681,25 @@ static void rna_def_modifier_shallowwater(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "time");
 	RNA_def_property_ui_text(prop, "Time", "Current time of the simulation");
 	RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, -1);
-	RNA_def_property_update(prop, 0, "rna_ShallowWater_sim_update");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+	prop = RNA_def_property(srna, "amplitude_multiplier", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "amplitude_multiplier");
+	RNA_def_property_ui_text(prop, "Amplitude multiplier", "Amplitude multiplier");
+	RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, -1);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "geometry", PROP_STRING, PROP_FILEPATH);
 	//RNA_def_property_string_funcs(prop, "rna_MultiresModifier_filepath_get", "rna_MultiresModifier_filepath_length",
 	//                              "rna_MultiresModifier_filepath_set");
-
 	RNA_def_property_ui_text(prop, "Geometry Path", "Path to harbor geometry");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+	prop = RNA_def_property(srna, "solution", PROP_STRING, PROP_FILEPATH);
+	//RNA_def_property_string_funcs(prop, "rna_MultiresModifier_filepath_get", "rna_MultiresModifier_filepath_length",
+	//                              "rna_MultiresModifier_filepath_set");
+	RNA_def_property_ui_text(prop, "Solution Path", "Path to harbor solution");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 }
 

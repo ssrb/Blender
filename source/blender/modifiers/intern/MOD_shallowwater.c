@@ -150,41 +150,48 @@ static DerivedMesh *ReadMesh(const char *meshFileName) {
 
 static DerivedMesh *generate_geometry(ShallowWaterModifierData *swmd)
 {
-	DerivedMesh *result = ReadMesh("/home/sb/Hacking/ssrb.github.com/assets/lyttelton/lyttelton.mesh");
+	DerivedMesh *result = ReadMesh(swmd->geometry);
+	if (result) {
+		CDDM_calc_edges(result);
 
-	CDDM_calc_edges(result);
-
-	// Maybe UV coord ?
-
-	result->dirty |= DM_DIRTY_NORMALS;
+		// Maybe UV coord ?
+		result->dirty |= DM_DIRTY_NORMALS;
+	}
 
 	return result;
 }
 
 static bool LoadWaveComplexAmplitude(ShallowWaterModifierData *swmd, int numVerts)
 {
-	FILE *amplitudeStream = fopen("/home/sb/Hacking/ssrb.github.com/assets/lyttelton/lytteltonsol.txt", "r");
-	int vi;
-	swmd->imag = malloc(numVerts * sizeof(*swmd->imag));
-	swmd->real = malloc(numVerts * sizeof(*swmd->real));
+	FILE *amplitudeStream = fopen(swmd->solution, "r");
+	if (amplitudeStream) {
+		int vi;
+		swmd->imag = malloc(numVerts * sizeof(*swmd->imag));
+		swmd->real = malloc(numVerts * sizeof(*swmd->real));
 
-	for (vi = 0; vi < numVerts; ++vi) {
-		fscanf(amplitudeStream, "%f%fi\n", &swmd->real[vi], &swmd->imag[vi]);
+		for (vi = 0; vi < numVerts; ++vi) {
+			fscanf(amplitudeStream, "%f%fi\n", &swmd->real[vi], &swmd->imag[vi]);
+		}
+
+		fclose(amplitudeStream);
+
+		return true;
 	}
 
-	fclose(amplitudeStream);
-	return true;
+	return false;
 }
 
 static void apply_amplitude(DerivedMesh *mesh, ShallowWaterModifierData *swmd)
 {
-	int vi;
+	int vi, num_verts;
 	double ct = cos(swmd->time), st = sin(swmd->time);
 	MVert *mverts = CDDM_get_verts(mesh);
-	for (vi = 0; vi <  mesh->getNumVerts(mesh); ++vi)
+	num_verts = mesh->getNumVerts(mesh);
+#pragma omp parallel for private(vi) if (num_verts > OMP_MIN_RES)
+	for (vi = 0; vi < num_verts; ++vi)
 	{
 		float *co = mverts[vi].co;
-		co[2] = 0.00015 * (swmd->real[vi] * ct - swmd->imag[vi] * st);
+		co[2] = swmd->amplitude_multiplier * (swmd->real[vi] * ct - swmd->imag[vi] * st);
 	}
 }
 
@@ -192,14 +199,18 @@ static DerivedMesh *do_shallow_water(ShallowWaterModifierData *swmd)
 {
 	
 	DerivedMesh *mesh = generate_geometry(swmd);
-	if (mesh && (!swmd->real || !swmd->imag))
+	if (mesh)
 	{
-		int numVerts = mesh->getNumVerts(mesh);
+		if (!swmd->real || !swmd->imag) {
+			int numVerts = mesh->getNumVerts(mesh);
+			LoadWaveComplexAmplitude(swmd, numVerts);
+		}
 
-		LoadWaveComplexAmplitude(swmd, numVerts);
+		if (swmd->real && swmd->imag) {
+			apply_amplitude(mesh, swmd);
+		}
 	}
 
-	apply_amplitude(mesh, swmd);
 	return mesh;
 }
 
@@ -224,6 +235,9 @@ static void initData(ModifierData *md)
 	ShallowWaterModifierData *swmd = (ShallowWaterModifierData *)md;
 	swmd->real = swmd->imag = NULL;
 	swmd->time = 1.0;
+	swmd->amplitude_multiplier = 0.0001;
+	swmd->geometry[0] = '\0';
+	swmd->solution[0] = '\0';
 }
 
 static bool dependsOnNormals(ModifierData *md)
