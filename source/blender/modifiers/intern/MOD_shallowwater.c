@@ -1,6 +1,6 @@
 #include "MOD_modifiertypes.h"
-#include "BKE_cdderivedmesh.h"
 #include "DNA_object_types.h"
+#include "MEM_guardedalloc.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -12,222 +12,48 @@
 #define OMP_MIN_RES 18
 #endif
 
-static bool GotoSection(FILE *stream, const char *tag) {
-	char *line = NULL;
-	size_t blen;
-	ssize_t len;
-	bool found = false;
-	while((len = getline(&line, &blen, stream)) > 0) {
-		line[len - 1] = '\0';
-	  	if (!strcmp(line, tag)) {
-	  		found = true;
-	  		break;
-	  	}
-	}
-	free(line);
-	return found;
-}
-
-static bool ReadTriangles(	FILE *meshStream, 										
-							DerivedMesh *mesh) {
-	int totalNbTriangles, ti, *origindex;
-	int domainId;
-	MPoly *mpolys = NULL;
-	MLoop *mloops = NULL;
-
-	rewind(meshStream);
-
-	if (!GotoSection(meshStream, "Triangles")) {
-		return false;
-	}
-	
-	fscanf(meshStream, "%d\n", &totalNbTriangles);
-	
-	mpolys = CDDM_get_polys(mesh);
-	mloops = CDDM_get_loops(mesh);
-	origindex = CustomData_get_layer(&mesh->polyData, CD_ORIGINDEX);
-	
-	for (ti = 0; ti < totalNbTriangles; ++ti) {
-
-		MPoly *mp = &mpolys[ti];
-		MLoop *ml = &mloops[ti * 3];
-
-		if (4 != fscanf(meshStream, "%d %d %d %d\n", &ml[0].v, &ml[1].v, &ml[2].v, &domainId)) {
-			return false;
-		}
-
-		// Vertices in .mesh are 1-indexed
-		--ml[0].v;
-		--ml[1].v;
-		--ml[2].v;
-
-		mp->loopstart = ti * 3;
-		mp->totloop = 3;
-
-		mp->flag |= ME_SMOOTH;
-
-		origindex[ti] = ORIGINDEX_NONE;	
-	}
-
-	return true;
-}
-
-static bool ReadVertices(FILE *meshStream, DerivedMesh *mesh) {
-
-	int totalNbVertices, boundaryId, vi;
-	MVert *mverts;
-
-	rewind(meshStream);
-	
-	if (!GotoSection(meshStream, "Vertices")) {
-		return false;
-	}
-
-	mverts = CDDM_get_verts(mesh);
-
-	if (1 != fscanf(meshStream, "%d\n", &totalNbVertices)) {
-		return false;
-	}
-	
-	for (vi = 0; vi < totalNbVertices; ++vi) {
-		float *co = mverts[vi].co;
-		co[2] = 0.;
-		if (3 != fscanf(meshStream, "%f %f %d\n", &co[0], &co[1], &boundaryId)) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-static bool ReadMeshInfo(FILE *meshStream, int *totalNbVertices, int *totalNbTriangles) {
-
-	rewind(meshStream);
-
-	if (!GotoSection(meshStream, "Vertices")) {
-		return false;
-	}
-
-	if (1 != fscanf(meshStream, "%d\n", totalNbVertices)) {
-		return false;
-	}
-
-	rewind(meshStream);
-
-	if (!GotoSection(meshStream, "Triangles")) {
-		return false;
-	}
-
-	if (1 != fscanf(meshStream, "%d\n", totalNbTriangles)) {
-		return false;
-	}
-
-	return true;
-
-}
-
-static DerivedMesh *ReadMesh(const char *meshFileName) {
-
-	FILE *meshStream = fopen(meshFileName, "r");
-	DerivedMesh *mesh = NULL;
-	int totalNbVertices, totalNbTriangles;
-
-	if (!meshStream) {
-		return NULL;
-	}
-
-	if (ReadMeshInfo(meshStream, &totalNbVertices, &totalNbTriangles)) {
-		mesh = CDDM_new(totalNbVertices, 0, 0, totalNbTriangles * 3, totalNbTriangles);
-		if (mesh && (!ReadVertices(meshStream, mesh) || !ReadTriangles(meshStream, mesh))) {
-			mesh->release(mesh);
-			mesh = NULL;
-		}
-	}
-
-	fclose(meshStream);
-	return mesh;
-}
-
-static DerivedMesh *generate_geometry(ShallowWaterModifierData *swmd)
-{
-	DerivedMesh *result = ReadMesh(swmd->geometry);
-	if (result) {
-		CDDM_calc_edges(result);
-
-		// Maybe UV coord ?
-		result->dirty |= DM_DIRTY_NORMALS;
-	}
-
-	return result;
-}
-
-static bool LoadWaveComplexAmplitude(ShallowWaterModifierData *swmd, int numVerts)
+static bool loadWaveComplexAmplitude(ShallowWaterModifierData *swmd, int numVerts)
 {
 	FILE *amplitudeStream = fopen(swmd->solution, "r");
 	if (amplitudeStream) {
 		int vi;
-		swmd->imag = malloc(numVerts * sizeof(*swmd->imag));
-		swmd->real = malloc(numVerts * sizeof(*swmd->real));
-
+		swmd->imag = MEM_mallocN(numVerts * sizeof(*swmd->imag), __func__);
+		swmd->real = MEM_mallocN(numVerts * sizeof(*swmd->real), __func__);
 		for (vi = 0; vi < numVerts; ++vi) {
-			fscanf(amplitudeStream, "%f%fi\n", &swmd->real[vi], &swmd->imag[vi]);
+			if (2 != fscanf(amplitudeStream, "%f%fi\n", &swmd->real[vi], &swmd->imag[vi]))
+			{
+				MEM_SAFE_FREE(swmd->real);
+				MEM_SAFE_FREE(swmd->imag);
+				fclose(amplitudeStream);
+				return false;
+			}
 		}
-
 		fclose(amplitudeStream);
-
 		return true;
 	}
-
 	return false;
 }
 
-static void apply_amplitude(DerivedMesh *mesh, ShallowWaterModifierData *swmd)
+static void applyAmplitude(ShallowWaterModifierData *swmd, float (*vertexCos)[3], int numVerts)
 {
-	int vi, num_verts;
+	int vi;
 	double ct = cos(swmd->time), st = sin(swmd->time);
-	MVert *mverts = CDDM_get_verts(mesh);
-	num_verts = mesh->getNumVerts(mesh);
-#pragma omp parallel for private(vi) if (num_verts > OMP_MIN_RES)
-	for (vi = 0; vi < num_verts; ++vi)
+	#pragma omp parallel for private(vi) if (numVerts > OMP_MIN_RES)
+	for (vi = 0; vi < numVerts; ++vi)
 	{
-		float *co = mverts[vi].co;
-		co[2] = swmd->amplitude_multiplier * (swmd->real[vi] * ct - swmd->imag[vi] * st);
+		vertexCos[vi][2] += swmd->amplitude_multiplier * (swmd->real[vi] * ct - swmd->imag[vi] * st);
 	}
 }
 
-static DerivedMesh *do_shallow_water(ShallowWaterModifierData *swmd)
+static void doShallowWater(ShallowWaterModifierData *swmd, float (*vertexCos)[3], int numVerts)
 {
-	
-	DerivedMesh *mesh = generate_geometry(swmd);
-	if (mesh)
-	{
-		if (!swmd->real || !swmd->imag) {
-			int numVerts = mesh->getNumVerts(mesh);
-			LoadWaveComplexAmplitude(swmd, numVerts);
-		}
-
-		if (swmd->real && swmd->imag) {
-			apply_amplitude(mesh, swmd);
-		}
+	static bool failedToLoadOnce = false;
+	if (!failedToLoadOnce && !swmd->real && !swmd->imag) {		
+		failedToLoadOnce = !loadWaveComplexAmplitude(swmd, numVerts);
 	}
-
-	return mesh;
-}
-
-static void copyData(ModifierData *md, ModifierData *target)
-{
-	ShallowWaterModifierData *omd = (ShallowWaterModifierData *) md;
-	ShallowWaterModifierData *tomd = (ShallowWaterModifierData *) target;
-
-	tomd->time = omd->time;
-}
-
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
-                                  DerivedMesh *derivedData,
-                                  ModifierApplyFlag UNUSED(flag))
-{
-	DerivedMesh *mesh = do_shallow_water((ShallowWaterModifierData *)md);
-	return mesh ? mesh : derivedData;
+	if (swmd->real && swmd->imag) {
+		applyAmplitude(swmd, vertexCos, numVerts);
+	}
 }
 
 static void initData(ModifierData *md)
@@ -236,37 +62,60 @@ static void initData(ModifierData *md)
 	swmd->real = swmd->imag = NULL;
 	swmd->time = 1.0;
 	swmd->amplitude_multiplier = 0.0001;
-	swmd->geometry[0] = '\0';
 	swmd->solution[0] = '\0';
-}
-
-static bool dependsOnNormals(ModifierData *md)
-{
-	ShallowWaterModifierData *omd = (ShallowWaterModifierData *)md;
-	return true;
 }
 
 static void freeData(ModifierData *md)
 {
 	ShallowWaterModifierData *swmd = (ShallowWaterModifierData *)md;
-	free(swmd->real);
-	free(swmd->imag);
+	MEM_SAFE_FREE(swmd->real);
+	MEM_SAFE_FREE(swmd->imag);
+}
+
+static void copyData(ModifierData *src, ModifierData *dst)
+{
+	const ShallowWaterModifierData *swsrc = (const ShallowWaterModifierData *) src;
+	ShallowWaterModifierData *swdst = (ShallowWaterModifierData *) dst;
+	swdst->time = swsrc->time;
+	swdst->amplitude_multiplier = swsrc->amplitude_multiplier;
+	strncpy(swdst->solution, swsrc->solution, 1024);
+	swdst->real = swdst->imag = NULL;
+}
+
+static void deformVerts(	struct ModifierData *md, struct Object *UNUSED(ob),
+                			struct DerivedMesh *UNUSED(derivedData),
+               			 	float (*vertexCos)[3], int numVerts,
+                			ModifierApplyFlag UNUSED(flag))
+{
+	doShallowWater((ShallowWaterModifierData *)md, vertexCos, numVerts);
+}
+
+static void deformVertsEM(	struct ModifierData *md, struct Object *UNUSED(ob),
+                  			struct BMEditMesh *UNUSED(editData), struct DerivedMesh *UNUSED(derivedData),
+                  			float (*vertexCos)[3], int numVerts)
+{
+	doShallowWater((ShallowWaterModifierData *)md, vertexCos, numVerts);
+}
+
+static bool dependsOnNormals(ModifierData *UNUSED(md))
+{
+	return true;
 }
 
 ModifierTypeInfo modifierType_ShallowWater = {
 	/* name */              "ShallowWater",
 	/* structName */        "ShallowWaterModifierData",
 	/* structSize */        sizeof(ShallowWaterModifierData),
-	/* type */              eModifierTypeType_Constructive,
+	/* type */              eModifierTypeType_OnlyDeform,
 	/* flags */             eModifierTypeFlag_AcceptsMesh |
 	                        eModifierTypeFlag_SupportsEditmode |
 	                        eModifierTypeFlag_EnableInEditmode,
 	/* copyData */          copyData,
-	/* deformVerts */       NULL,
+	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
-	/* deformVertsEM */     NULL,
+	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

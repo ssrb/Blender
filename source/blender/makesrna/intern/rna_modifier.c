@@ -3690,12 +3690,6 @@ static void rna_def_modifier_shallowwater(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "geometry", PROP_STRING, PROP_FILEPATH);
-	//RNA_def_property_string_funcs(prop, "rna_MultiresModifier_filepath_get", "rna_MultiresModifier_filepath_length",
-	//                              "rna_MultiresModifier_filepath_set");
-	RNA_def_property_ui_text(prop, "Geometry Path", "Path to harbor geometry");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
 	prop = RNA_def_property(srna, "solution", PROP_STRING, PROP_FILEPATH);
 	//RNA_def_property_string_funcs(prop, "rna_MultiresModifier_filepath_get", "rna_MultiresModifier_filepath_length",
 	//                              "rna_MultiresModifier_filepath_set");

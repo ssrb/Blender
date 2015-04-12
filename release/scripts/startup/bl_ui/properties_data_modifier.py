@@ -1228,10 +1228,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
     def SHALLOW_WATER(self, layout, ob, md):
 
         row = layout.row()
-        row.label(text="Geometry path:")
-        row.prop(md, "geometry", text="")
-
-        row = layout.row()
         row.label(text="Solution path:")
         row.prop(md, "solution", text="")
 
